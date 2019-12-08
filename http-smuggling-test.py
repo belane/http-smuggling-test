@@ -96,7 +96,7 @@ def connect(domain, port=443, ssl_enable=True):
     try:
         connection.connect((domain, port))
     except socket.error as e:
-        print('[!] {}'.format(e))
+        print('[!] Abort. {}'.format(e))
         exit()
 
     return connection
@@ -124,8 +124,8 @@ def run_test(domain, port, ssl_enable, request, count=2):
             try:
                 data = connection.recv(1024)
             except socket.error as e:
-                connection.shutdown(socket.SHUT_WR)
                 try:
+                    connection.shutdown(socket.SHUT_WR)
                     data = connection.recv(1024)
                 except:
                     if verbose > 1:
