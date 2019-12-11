@@ -3,6 +3,8 @@
 
 import sys
 import socket, ssl
+from time import sleep
+from threading import Thread
 from urllib.parse import urlparse
 
 
@@ -11,6 +13,8 @@ verbose = 1
 socket_timeout = 5
 exit_on_first = True
 probe_rounds = 3
+threads = 5
+sleep_per_thread = 0.45
 
 
 if len(sys.argv) < 2:
@@ -108,13 +112,29 @@ def get_status(response):
         if line.startswith('HTTP/1.'):
             return line.split()[1]
 
-    return 000
+    return '000'
 
 
 # RUN HTTP SMUGGLING ATTACKS AND CHECKS RESULTS
 def run_test(domain, port, ssl_enable, request, count=2):
-    responses = []
+    results = []
+    workers = [Thread(target=test_request, args=(domain, port, ssl_enable, request, count, results)) for w in range(threads)]
+    for w in workers:
+        w.setDaemon(True)
+        w.start()
+        sleep(sleep_per_thread)
 
+    for w in workers:
+        w.join()
+
+    if verbose > 0:
+        print('    Test Result: {}'.format(results))
+
+    return any(results)
+
+
+def test_request(domain, port, ssl_enable, request, count, results):
+    responses = []
     for req in range(0, count):
         connection = connect(domain, port, ssl_enable)
         connection.sendall(request.encode())
@@ -146,12 +166,14 @@ def run_test(domain, port, ssl_enable, request, count=2):
                 print(' < {}'.format(r))
 
         responses.append(get_status(response))
-        if verbose > 0:
-            print('    # Request {}: {}'.format(req, responses[req]))
+
+    if verbose > 0:
+        print('      Responses {}'.format(responses))
 
     if '200' in responses:
-        return responses[1:] != responses[:-1]
-    return False
+        results.append(responses[1:] != responses[:-1])
+    else:
+        results.append(False)
 
 
 # ITERATE SMUGGLE PROBES
